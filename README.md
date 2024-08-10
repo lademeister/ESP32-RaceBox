@@ -12,4 +12,7 @@ You may #define TARGET_DEVICE_ADDRESS "aa:bb:cc:dd:ee:ff in the code to only con
 Checksum check and message identification are implemented, data parsing is implemented for RaceBox Data Messages (=live data like GPS speed, coordinates, accelerations, heading, date/time, voltage etc.)
 parsing of other message types is prepared but not yet implemented.
 
+Automatic reconnect is implemented.
+For voltage readings, an automatic device recognition between RaceBox Mini/Mini S and RaceBox micro is implemented,
+
 The code is commented in detail to allow better understanding.
