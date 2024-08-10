@@ -17,6 +17,9 @@
   This code is licensed under the GPL-3.0 License.
 */
 
+//Required libraries: NimBLEclient
+//libraries requred for 1.5" SPI full color OLED (tested with Waveshare 1.5" SPI color OLED): Adafruit_GFX, Adafruit_SSD1351
+
 
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1351.h>
@@ -28,16 +31,16 @@
 //################### important setting #########################
 
 //example how to define a certain address so that we only connect to a distinguished RaceBox that matches this address:   #define TARGET_DEVICE_ADDRESS "aa:bb:cc:dd:ee:ff"
-//replace the actual address with the one that matches your device (you will see the address printed in the serial output of this code while scanning for bluetooth devices on start)
+//replace the actual address below with the one that matches your device (you will see the address printed in the serial output of this code while it is scanning for bluetooth devices on start)
 
 //#define TARGET_DEVICE_ADDRESS "aa:bb:cc:dd:ee:ff"
 
 //alternatively, you may comment the line above like this: //#define TARGET_DEVICE_ADDRESS "aa:bb:cc:dd:ee:ff".
-//--> In that case we will connect to any RaceBox (or to be clear: to any device that advertises a name beginning with 'RaceBox')
+//--> In that case the code will connect to any RaceBox (or to be clear: to any device that advertises a name beginning with 'RaceBox'), as long as the advertised service UUID also matches the requirement.
 
 //##############################################################
 
-// Screen dimensions - setting for an optional full color 128x128px 1,5" OLED display (SPI Bus)
+// Screen dimensions - settings for an optional full color 128x128px 1,5" OLED display (SPI Bus)
 #define SCREEN_WIDTH  128
 #define SCREEN_HEIGHT 128 // Change this to 96 for 1.27" OLED. (128 is for 1,5" OLED)
 #define DISPLAY_ROTATION 180
@@ -60,10 +63,9 @@
 #define COLOR_WHITE           0xFFFF
 
 //device type, will be set automatically:  0: RaceBox Mini/Mini S, 1: RaceBox Micro - used to handle different battery status decoding between racebox mini/mini s and micro.
-int deviceType = -1; //-1: unknown device type as default, the part with "if (deviceName.startsWith("RaceBox Micro")) {" in void setup() determines it automatically from the reported device name
+int deviceType = -1; //-1: unknown device type as default, the statement 'if (deviceName.rfind("RaceBox Micro", 0) == 0) {' and the following lines in class AdvertisedDeviceCallbacks automatically determines the device type.
 
-
-Adafruit_SSD1351 tft = Adafruit_SSD1351(SCREEN_WIDTH, SCREEN_HEIGHT, &SPI, CS_PIN, DC_PIN, RST_PIN);
+Adafruit_SSD1351 OLED = Adafruit_SSD1351(SCREEN_WIDTH, SCREEN_HEIGHT, &SPI, CS_PIN, DC_PIN, RST_PIN);
 
 // BLE UUIDs
 static BLEUUID UART_service_UUID("6E400001-B5A3-F393-E0A9-E50E24DCCA9E");
@@ -84,6 +86,7 @@ const unsigned long outputIntervalMs_oled = 1000 / outputFrequencyHzOLED;
 static bool doConnect = false;
 static bool connected = false;
 static bool doScan = false;
+static bool updated_RaceBox_Data_Message = false; //used to determine if we have new live data to print
 static BLERemoteCharacteristic* pRemoteCharacteristic;
 static BLEAdvertisedDevice* myRaceBox;
 
@@ -136,17 +139,17 @@ String compass_direction;
 //for e.g. waveshare 1,5" SPI color OLED
 void set_display_orientation_and_color_invert() {
 #if DISPLAY_INVERTED
-    tft.invert(true);
+    OLED.invert(true);
 #endif
 
 #if DISPLAY_ROTATION == 0
-    tft.setRotation(0);
+    OLED.setRotation(0);
 #elif DISPLAY_ROTATION == 90
-    tft.setRotation(1);
+    OLED.setRotation(1);
 #elif DISPLAY_ROTATION == 180
-    tft.setRotation(2);
+    OLED.setRotation(2);
 #elif DISPLAY_ROTATION == 270
-    tft.setRotation(3);
+    OLED.setRotation(3);
 #endif
 }
 
@@ -159,24 +162,27 @@ static void notifyCallback(
         parsePayload(pData);
     } else {
         Serial.println("payload length is less than 80 bytes. 80 bytes would be expected for a RaceBox data message.");
+        Serial.println("For other messages, the payload can be shorter.");
+        //to allow that, we still send the data to parsePayload(pData):
+        parsePayload(pData);
     }
 }
 
 template <typename T>
 void printColoredText(const char* label, uint16_t labelColor, T value, uint16_t valueColor, int16_t x, int16_t y, const char* unit = "", int precision = 2) {
-    tft.setCursor(x, y);
+    OLED.setCursor(x, y);
     
-    tft.setTextColor(labelColor);
-    tft.print(label);
+    OLED.setTextColor(labelColor);
+    OLED.print(label);
     
-    tft.setTextColor(valueColor);
+    OLED.setTextColor(valueColor);
     if constexpr (std::is_floating_point<T>::value) {
-        tft.print(value, precision); //specified precision (digits after comma)
+        OLED.print(value, precision); //specified precision (digits after comma)
     } else {
-        tft.print(value);
+        OLED.print(value);
     }
     
-    tft.print(unit);
+    OLED.print(unit);
 }
 
 
@@ -190,20 +196,22 @@ class ClientCallbacks : public NimBLEClientCallbacks {
 
   void onDisconnect(NimBLEClient* pClient) {
     connected = false;
-    Serial.println("Disconnected from RaceBox! trying to reconnect...");
+    Serial.println("Disconnected from RaceBox!");
+    Serial.println("HINT: disconnects can happen if excessive serial output (especially in void parsePayload and functions like void parse_RaceBox_Data_Message_payload etc. delay the code execution.");
+    Serial.println("Trying to reconnect...");
     doConnect = true;
-    tft.fillScreen(COLOR_BLACK); 
+    OLED.fillScreen(COLOR_BLACK); 
     int yPos = 40; // Starting Y position for the first line
     int lineYPos = yPos;
-    tft.drawLine(0, lineYPos, 128, lineYPos, COLOR_WHITE); //divider line
+    OLED.drawLine(0, lineYPos, 128, lineYPos, COLOR_WHITE); //divider line
     yPos = yPos + 4;
-    tft.setCursor(3, yPos);
-    tft.setTextColor(COLOR_WHITE);
-    tft.print("RaceBox ");
-    tft.setTextColor(COLOR_RED);
-    tft.print("DISCONNECTED");
+    OLED.setCursor(3, yPos);
+    OLED.setTextColor(COLOR_WHITE);
+    OLED.print("RaceBox ");
+    OLED.setTextColor(COLOR_RED);
+    OLED.print("DISCONNECTED");
     lineYPos = yPos + 11;
-    tft.drawLine(0, lineYPos, 128, lineYPos, COLOR_WHITE); //divider line
+    OLED.drawLine(0, lineYPos, 128, lineYPos, COLOR_WHITE); //divider line
   }
 };
 
@@ -242,12 +250,14 @@ class AdvertisedDeviceCallbacks : public NimBLEAdvertisedDeviceCallbacks {
             } else {
                 Serial.printf("Device name starts with RaceBox but address %s does not match the TARGET_DEVICE_ADDRESS set in code.\n", deviceAddress.c_str());
                 Serial.printf("Comment out the definition of TARGET_DEVICE_ADDRESS in code (to connect to any device named RaceBox) or set TARGET_DEVICE_ADDRESS to an address that matches your device.\n\n");
-                Serial.printf("##### We are therefore NOT connecting to the device %s although it seems to be a RaceBox #####\n\n", deviceAddress.c_str());
+                Serial.printf("##### We are therefore NOT connecting to the device %s although it seems to be a RaceBox #####\n", deviceAddress.c_str());
             }
             #else
             // If no specific address is defined, connect to any device whose name starts with "RaceBox"
-            Serial.printf("TARGET_DEVICE_ADDRESS is not set in code (or commented out ), so we connect to any RaceBox that we find.\n\nConnecting to RaceBox with address %s.... \n\n", advertisedDevice->getAddress().toString().c_str());
+            Serial.println("RaceBox found. TARGET_DEVICE_ADDRESS is not set in code (or commented out ), so we connect to any RaceBox that we find.");
             NimBLEDevice::getScan()->stop();  // Stop scanning
+            Serial.println("stopped bluetooth scanning.");
+            Serial.printf("Connecting to RaceBox with address %s.... \n", advertisedDevice->getAddress().toString().c_str());
             myRaceBox = advertisedDevice;
             doConnect = true;
             #endif
@@ -273,7 +283,7 @@ String getCompassDirection(float headingDegrees) {
 
 //decode battery status
 void decodeBatteryStatus(uint8_t batteryStatus) {
-    if (deviceType == 0) { //RaceBox Mini/Mini S
+    if (deviceType == 0) { //RaceBox Mini or RaceBox Mini S
         bool isCharging = (batteryStatus & 0x80) != 0; //check if the MSB is set (charging status)
         uint8_t batteryLevel = batteryStatus & 0x7F;   //battery level (remaining 7 bits)
         Serial.print("RaceBox Mini/Mini S - "); //interpreting battery status according to datasheet
@@ -284,7 +294,7 @@ void decodeBatteryStatus(uint8_t batteryStatus) {
         Serial.println("%");
     } else if (deviceType == 1) { //RaceBox Micro
         Serial.print("RaceBox Micro - "); //interpreting battery status as input voltage (according to datasheet)
-        float inputVoltage = batteryStatus / 10.0; //Input voltage is multiplied by 10, according to datasheet
+        float inputVoltage = batteryStatus / 10.0; //Input voltage must be multiplied by 10, according to datasheet
         Serial.print("Input Voltage: ");
         Serial.print(inputVoltage, 1); //print with one decimal
         Serial.println(" V");
@@ -303,8 +313,8 @@ void calculateChecksum(uint8_t* data, uint16_t length, uint8_t& CK_A, uint8_t& C
 }
 
 
-void parsePayload(uint8_t* data) {  //this function is triggered with each incoming packet. Note that any serial output here will directly be sent when the function runs and can interfere with output from void loop, as this function runs when data packets come in.
-Serial.println("++++++++++++++ received data packet ++++++++++++++");
+void parsePayload(uint8_t* data) {  //handle incoming data. This function is triggered with each incoming packet. Note that any serial output here will directly be sent when the function runs and can interfere with output from void loop, as this function runs when data packets come in.
+//Serial.println("++++++++++++++ received data packet ++++++++++++++"); //any excessive serial output in the parsing functions can lead to disconnects. remember that when experiencing unexplainable disconnects!
 /* Explanation of how we interpret the data that we got from racebox:
  * The data buffer (named 'data' here) is a pointer (indicated by the *) to the beginning of a data payload in memory. generally spoken,
  * uint8_t* data is a pointer to a byte array (buffer) that holds the raw data received from our RaceBox via bluetooth low energy (BLE).
@@ -344,14 +354,14 @@ Serial.println("++++++++++++++ received data packet ++++++++++++++");
  * So if the data comes in 25 times per second, we update the variables just as often (if that kind of data message is implemented).
  */
 
-    //check for correct frame start
+    //check for correct frame start - may need to be removed or changed for other data than RaceBox Data Message!
     if (data[0] != 0xB5 || data[1] != 0x62) {
-//        Serial.println("Invalid frame start of payload data");
+        Serial.println("Invalid frame start of payload data - check may need to be removed or changed for other data than RaceBox Data Message!");
         return;
     }
 
     
-//Extract data from payload, at first we need the payloadLength to calculate checksum
+//Extract data from payload, at first we need the payloadLength to calculate the checksum
                                                                     //examples for data content, mostly copied from RaceBox datasheet:
     header = *(reinterpret_cast<uint16_t*>(data));                  //0xB5 0x62 (that are the two header identification bytes, according to RaceBox datasheet: The first 2 bytes are the frame start - always 0xB5 and 0x62.)
     messageClass = *(reinterpret_cast<uint8_t*>(data + 2));         //expecting 0xFF for a RaceBox data message
@@ -362,61 +372,61 @@ Serial.println("++++++++++++++ received data packet ++++++++++++++");
     //validate the length of the packet
     uint16_t packetLength = 6 + payloadLength + 2; //header (6 bytes) + payload + checksum (2 bytes)
     if (packetLength > 512) { //double check if 5
-        Serial.print("Packet size exceeds maximum allowed size (512 bytes). ");
+        Serial.print("Received packet size exceeds maximum allowed size (512 bytes). ");
         Serial.print("Packet length is ");
         Serial.print(packetLength);
         Serial.println(" bytes.");
         return;
     } else { //if packetLength is within allowed limits, print out some info on the data packet:
-        Serial.println("Payload length is " + String(payloadLength) + " bytes");
-        Serial.println("Expected payload length according to datasheet: 0 - 504 bytes. For a RaceBox Data Message payload length is 80 bytes.");
-        Serial.println("Packet length (including checksum) is " + String(packetLength) + " bytes");
+        //Serial.println("Payload length is " + String(payloadLength) + " bytes");
+        //Serial.println("Expected payload length according to datasheet: 0 - 504 bytes. For a RaceBox Data Message payload length is 80 bytes.");
+        //Serial.println("Packet length (including checksum) is " + String(packetLength) + " bytes");
     }
     
     //validate checksum
     uint8_t CK_A, CK_B;
     calculateChecksum(data, packetLength, CK_A, CK_B);
     if (data[packetLength - 2] != CK_A || data[packetLength - 1] != CK_B) {
-        Serial.println("Checksum validation failed.");
+        Serial.println("*** Checksum validation of incoming data package failed. ***");
         return;
     } else {
-        Serial.println("Checksum validation successful.");
+        //Serial.println("Checksum validation successful.");
     }
-    Serial.println();
+    //Serial.println();
 
     //print message class and message ID - used to determine the type of message. A RaceBox Data Message has messageClass 0xFF and messageId 0x01.
-    Serial.print("Message Class: 0x");
-    Serial.println(messageClass, HEX);
-    Serial.print("Message ID: 0x");
-    Serial.println(messageId, HEX);
+//    Serial.print("Message Class: 0x");
+//    Serial.println(messageClass, HEX);
+//    Serial.print("Message ID: 0x");
+//    Serial.println(messageId, HEX);
 
     //check if the message class and ID match the expected values for a live data packet
     if (messageClass == 0xFF || messageId == 0x01) {//in case we receive live data (standard on start of RaceBox) and interpret it accordingly
-      Serial.println("the received message has messageClass 0xFF and messageId 0x01, this is a valid RaceBox Data Message. Parsing payload.");
+      //Serial.println("the received message has messageClass 0xFF and messageId 0x01, this is a (valid) RaceBox Data Message. Parsing payload.");
       parse_RaceBox_Data_Message_payload(data); //sending variable data to this function to interpret it
       //outputting received data (this will be triggered each time a payload is parsed, so be aware that it may delay data update rate if e.g. printing a lot of info to serial takes longer than it takes for the next data to arrive.)
-      print_RaceBox_Data_message_payload_to_oled(); 
-      
-      //####### be aware that those serial outputs below are sent each time a payload is parsed (i.e. up to 25x per second) like an interrupt, so the serial output from this function can overlay/interfere with output from void loop ####### 
-      print_RaceBox_Data_message_payload_to_serial(); //<-- ATTENTION! see comment above
-      //if you move this function to loop, you may want to comment out all serial outputs from void parsePayload.
+//    print_RaceBox_Data_message_payload_to_oled(); 
+//      
+//      //####### be aware that those serial outputs below are sent each time a payload is parsed (i.e. up to 25x per second) like an interrupt, so the serial output from this function can overlay/interfere with output from void loop ####### 
+//    print_RaceBox_Data_message_payload_to_serial(); //<-- ATTENTION! see comment above
+//      //if you move this function to loop, you may want to comment out all serial outputs from void parsePayload.
     }
     
     //examples how to handle other received messages;
     else if (messageClass == 0xFF || messageId == 0x21) {//History Data Message
-      Serial.println("the received message has messageClass 0xFF and messageId 0x21, this is a valid History Data Message message. Parsing payload NOT yet implemented.");
+      Serial.println("the received message has messageClass 0xFF and messageId 0x21, this is a (valid) History Data Message message. Parsing payload NOT yet implemented.");
       //parse_History_Data_Message_payload(data); //sending variable data to this function to interpret it  (function not yet implemented)
     }
     else if (messageClass == 0xFF || messageId == 0x22) {//Standalone Recording Status
-      Serial.println("the received message has messageClass 0xFF and messageId 0x22, this is a valid Standalone Recording Status message. Parsing payload NOT yet implemented.");
+      Serial.println("the received message has messageClass 0xFF and messageId 0x22, this is a (valid) Standalone Recording Status message. Parsing payload NOT yet implemented.");
       //parse_standalone_Recording_Status_payload(data); //sending variable data to this function to interpret it  (function not yet implemented)
     }
     else if (messageClass == 0xFF || messageId == 0x23) {//Recorded Data Download
-      Serial.println("the received message has messageClass 0xFF and messageId 0x23, this is a valid Recorded Data Download message. Parsing payload NOT yet implemented.");
+      Serial.println("the received message has messageClass 0xFF and messageId 0x23, this is a (valid) Recorded Data Download message. Parsing payload NOT yet implemented.");
       //parse_Recorded_Data_payload(data); //sending variable data to this function to interpret it  (function not yet implemented)
     }
     else if (messageClass == 0xFF || messageId == 0x26) {//Standalone Recording State Change Message
-      Serial.println("the received message has messageClass 0xFF and messageId 0x26, this is a valid Standalone Recording State Change Message. Parsing payload NOT yet implemented.");
+      Serial.println("the received message has messageClass 0xFF and messageId 0x26, this is a (valid) Standalone Recording State Change Message. Parsing payload NOT yet implemented.");
       //parse_Recorded_Data_payload(data); //sending variable data to this function to interpret it  (function not yet implemented)
     }
     
@@ -478,39 +488,89 @@ void parse_RaceBox_Data_Message_payload(uint8_t* data){ //function to handle pay
     
     headingDegrees = heading / 100000.0; //convert it to a float variable that is needed for the function getCompassDirection
     compass_direction = getCompassDirection(headingDegrees); //generate human readable compass_direction like N, NW, SW etc. from the heading degrees and save them in String 'compass_direction'
-
+    updated_RaceBox_Data_Message = true; //bool is used to determine if updated data for variables in RaceBox Data Message is available (e.g. to print or display them in void loop() )
 }
 
 
-//function to connect to RaceBox via BLE
+////function to connect to RaceBox via BLE
+//bool connectToRaceBox() {
+//  NimBLEClient* pClient = nullptr;
+//
+//  if (NimBLEDevice::getClientListSize()) {
+//    pClient = NimBLEDevice::getClientByPeerAddress(myRaceBox->getAddress());
+//    if (pClient) {
+//      if (!pClient->connect(myRaceBox)) {
+//        Serial.println("Failed to reconnect. Retrying...");
+//        Serial.println("DEBUG: connectToRaceBox() will now return false and exit.");
+//        return false;
+//      }
+//    } else {
+//      pClient = NimBLEDevice::createClient();
+//      pClient->setClientCallbacks(new ClientCallbacks(), false);
+//      if (!pClient->connect(myRaceBox)) {
+//        Serial.println("Failed to connect.");
+//        NimBLEDevice::deleteClient(pClient);
+//        //Serial.println("DEBUG: connectToRaceBox() will now return false and exit.");
+//        return false;
+//      }
+//    }
+//  } else {
+//    pClient = NimBLEDevice::createClient();
+//    pClient->setClientCallbacks(new ClientCallbacks(), false);
+//    if (!pClient->connect(myRaceBox)) {
+//      Serial.println("Failed to connect.");
+//      NimBLEDevice::deleteClient(pClient);
+//      Serial.println("DEBUG: connectToRaceBox() will now return false and exit.");
+//      return false;
+//    }
+//  }
+//
+//  //obtain the service and characteristic
+//  BLERemoteService* pService = pClient->getService(UART_service_UUID);
+//  if (pService != nullptr) {
+//    pRemoteCharacteristic = pService->getCharacteristic(TX_characteristic_UUID);
+//    if (pRemoteCharacteristic != nullptr) {
+//      pRemoteCharacteristic->registerForNotify(notifyCallback);
+//      Serial.println("DEBUG: connectToRaceBox() will now return true and exit.");
+//      return true;
+//    }
+//  }
+//  Serial.println("DEBUG: connectToRaceBox() will now return false and exit.");
+//  return false;
+//}
+
+// Function to connect to RaceBox via BLE
 bool connectToRaceBox() {
   NimBLEClient* pClient = nullptr;
 
+  // Check if there's an existing client that matches the address
   if (NimBLEDevice::getClientListSize()) {
     pClient = NimBLEDevice::getClientByPeerAddress(myRaceBox->getAddress());
     if (pClient) {
       if (!pClient->connect(myRaceBox)) {
         Serial.println("Failed to reconnect. Retrying...");
-        Serial.println("DEBUG: connectToRaceBox() will now return false and exit.");
+        //Serial.println("DEBUG: connectToRaceBox() will now return false and exit.");
         return false;
       }
     } else {
+      // Create a new client if none matches
       pClient = NimBLEDevice::createClient();
       pClient->setClientCallbacks(new ClientCallbacks(), false);
       if (!pClient->connect(myRaceBox)) {
         Serial.println("Failed to connect.");
         NimBLEDevice::deleteClient(pClient);
-        Serial.println("DEBUG: connectToRaceBox() will now return false and exit.");
+        //Serial.println("DEBUG: connectToRaceBox() will now return false and exit.");
         return false;
       }
     }
   } else {
+    // Create a new client if there are no existing clients
     pClient = NimBLEDevice::createClient();
     pClient->setClientCallbacks(new ClientCallbacks(), false);
     if (!pClient->connect(myRaceBox)) {
       Serial.println("Failed to connect.");
       NimBLEDevice::deleteClient(pClient);
-      Serial.println("DEBUG: connectToRaceBox() will now return false and exit.");
+      //Serial.println("DEBUG: connectToRaceBox() will now return false and exit.");
       return false;
     }
   }
@@ -525,9 +585,12 @@ bool connectToRaceBox() {
       return true;
     }
   }
-  Serial.println("DEBUG: connectToRaceBox() will now return false and exit.");
+
+  //if service or characteristic is not found, return false
+  //Serial.println("DEBUG: connectToRaceBox() will now return false and exit.");
   return false;
 }
+
 
 void setup() {
   Serial.begin(115200);
@@ -545,39 +608,39 @@ void setup() {
   Serial.println();
 
   //initialize the display
-  tft.begin();
+  OLED.begin();
   set_display_orientation_and_color_invert();
-  tft.fillScreen(COLOR_BLACK);
+  OLED.fillScreen(COLOR_BLACK);
   int yPos = 40; //starting Y position
   int lineYPos = yPos;
-  tft.drawLine(0, lineYPos, 128, lineYPos, COLOR_WHITE); //divider line
+  OLED.drawLine(0, lineYPos, 128, lineYPos, COLOR_WHITE); //divider line
   yPos = yPos + 4;
-  tft.setCursor(8, yPos);
-  tft.setTextColor(COLOR_WHITE);
-  tft.print("RaceBox ");
-  tft.setTextColor(COLOR_CYAN);
-  tft.print("BLE CLIENT");
+  OLED.setCursor(8, yPos);
+  OLED.setTextColor(COLOR_WHITE);
+  OLED.print("RaceBox ");
+  OLED.setTextColor(COLOR_CYAN);
+  OLED.print("BLE CLIENT");
   lineYPos = yPos + 11;
-  tft.drawLine(0, lineYPos, 128, lineYPos, COLOR_WHITE); //divider line
+  OLED.drawLine(0, lineYPos, 128, lineYPos, COLOR_WHITE); //divider line
   yPos=lineYPos + 8;
-  tft.setCursor(0, yPos);
-  tft.setTextColor(COLOR_BLUE);
-  tft.print("Bluetooth ");
-  tft.setTextColor(COLOR_WHITE);
-  tft.print("scanning...");
+  OLED.setCursor(0, yPos);
+  OLED.setTextColor(COLOR_BLUE);
+  OLED.print("Bluetooth ");
+  OLED.setTextColor(COLOR_WHITE);
+  OLED.print("scanning...");
   
   #ifdef TARGET_DEVICE_ADDRESS
   yPos=yPos + 14;
-  tft.setCursor(0, yPos);
-  tft.setTextColor(COLOR_YELLOW);
-  tft.print("will only connect to");
+  OLED.setCursor(0, yPos);
+  OLED.setTextColor(COLOR_YELLOW);
+  OLED.print("will only connect to");
   yPos=yPos + 10;
-  tft.setCursor(0, yPos);
-  tft.print("RaceBox with address");
+  OLED.setCursor(0, yPos);
+  OLED.print("RaceBox with address");
   yPos=yPos + 12;
-  tft.setCursor(10, yPos);
-  tft.setTextColor(COLOR_MAGENTA);
-  tft.print(TARGET_DEVICE_ADDRESS);
+  OLED.setCursor(10, yPos);
+  OLED.setTextColor(COLOR_MAGENTA);
+  OLED.print(TARGET_DEVICE_ADDRESS);
   #endif
 
   Serial.println("Enter '1', '2', or '3' to serial console to start a function (currently those are only empty function prototypes)");
@@ -612,7 +675,7 @@ void print_RaceBox_Data_message_payload_to_serial(){
 
         // Serial output with correct formatting - HINT: the serial output as well as excessive updating of the OLED will take time and can hinder fast operation (e.g. reading in at 25hz), so output should be limited
         Serial.println();
-        Serial.println("--- RaceBox Data Message from RaceBox: ---");
+        Serial.println("--- updated values from RaceBox Data Message available: ---");
         Serial.println("--------------------------------------------------------------------------------------------------");
         Serial.println("iTOW: " + String(iTOW) + " ms");
         Serial.println("Year: " + String(year));
@@ -623,10 +686,6 @@ void print_RaceBox_Data_message_payload_to_serial(){
         char timeString[9];  // Buffer to store the formatted time string
         sprintf(timeString, "%02d:%02d:%02d", hour, minute, second); //build a time string that always has the time format 00:00:00
         Serial.println("Time (UTC): " + String(timeString));
-        
-        //Serial.println("Battery Status: " + String(batteryStatus)); //needs a function for interpretation, which is depending on device type:
-        decodeBatteryStatus(batteryStatus); //a separate decoding funtion is a better solution, as there are differences in interpretation depending if it is a racebox mini, mini s oder micro
-        Serial.println();
         
         //output fix status with interpretation
         String fixStatusText;
@@ -651,7 +710,7 @@ void print_RaceBox_Data_message_payload_to_serial(){
         Serial.println("Speed Accuracy: " + String(speedAccuracy / 1000.0, 2) + " m/s");
         Serial.println("Speed: " + String(speed / 1000.0, 2) + " m/s");
         Serial.println("Speed: " + String(speed*3.6 / 1000.0, 2) + " km/h");
-        Serial.println("Heading Accuracy: " + String(headingAccuracy / 1e5, 1) + " deg");
+        Serial.print("Heading Accuracy: " + String(headingAccuracy / 1e5, 1) + " deg");
         Serial.println(" (heading " + String((fixStatusFlags & 0x20) ? "valid)" : "NOT valid - may need movement to become valid)"));
         //Serial.print("Heading: " + String(heading / 1e5, 1) + " deg");
         Serial.print("Heading: ");
@@ -680,6 +739,10 @@ void print_RaceBox_Data_message_payload_to_serial(){
         Serial.println("  Bit 5: Valid Heading: " + String((fixStatusFlags & 0x20) ? "Yes" : "No"));
         Serial.println("  Bits 7..6: Carrier Phase Range Solution: " + String((fixStatusFlags >> 6) & 0x03));
         Serial.println();
+                
+        //Serial.println("Battery Status: " + String(batteryStatus)); //needs a function for interpretation, which is depending on device type:
+        decodeBatteryStatus(batteryStatus); //a separate decoding funtion is a better solution, as there are differences in interpretation depending if it is a racebox mini, mini s oder micro
+        Serial.println();
         
     }
     else{
@@ -695,48 +758,48 @@ void print_RaceBox_Data_message_payload_to_oled(){
 //    if (currentTime - lastOutputTimeOLED >= outputIntervalMs_oled) { //limits the amount how often we print current values to oled
 //        lastOutputTimeOLED = currentTime;
         //clear OLED screen and display values on 1,5" SPI color OLED display:
-        tft.fillScreen(COLOR_BLACK); //can be done more nicely, the full clearing of oled screen is visible as flickering.
+        OLED.fillScreen(COLOR_BLACK); //can be done more nicely, the full clearing of oled screen is visible as flickering.
         set_display_orientation_and_color_invert(); //could be moved to setup()
 
         //displaying data on the OLED with 9px spacing
         int yPos = 0; //tarting Y position for the first line
         int lineYPos = yPos;
         yPos = yPos+3;
-        tft.drawLine(0, lineYPos, 128, lineYPos, COLOR_WHITE); //divider line
-        tft.setCursor(15, yPos); //starting at x position 15 and y position 0 (x is to the right, y is downwards)
-        tft.setTextColor(COLOR_RED);
-        tft.print("RaceBox ");
-        tft.setTextColor(COLOR_GREEN);
-        tft.print("connected");
+        OLED.drawLine(0, lineYPos, 128, lineYPos, COLOR_WHITE); //divider line
+        OLED.setCursor(15, yPos); //starting at x position 15 and y position 0 (x is to the right, y is downwards)
+        OLED.setTextColor(COLOR_RED);
+        OLED.print("RaceBox ");
+        OLED.setTextColor(COLOR_GREEN);
+        OLED.print("connected");
         lineYPos = yPos + 11;
-        tft.drawLine(0, lineYPos, 128, lineYPos, COLOR_WHITE); //divider line
+        OLED.drawLine(0, lineYPos, 128, lineYPos, COLOR_WHITE); //divider line
         
         yPos += 15; //jump down a bit for the next line
         
         if (fixStatus == 0) {
-            tft.setCursor(0, yPos);
-            tft.setTextColor(COLOR_WHITE);
-            tft.print("GPS: ");
-            tft.setTextColor(COLOR_RED);
-            tft.print("no Fix");
+            OLED.setCursor(0, yPos);
+            OLED.setTextColor(COLOR_WHITE);
+            OLED.print("GPS: ");
+            OLED.setTextColor(COLOR_RED);
+            OLED.print("no Fix");
         } else if (fixStatus == 2) {
-            tft.setCursor(0, yPos);
-            tft.setTextColor(COLOR_WHITE);
-            tft.print("GPS: ");
-            tft.setTextColor(COLOR_CYAN);
-            tft.print("2D Fix");
+            OLED.setCursor(0, yPos);
+            OLED.setTextColor(COLOR_WHITE);
+            OLED.print("GPS: ");
+            OLED.setTextColor(COLOR_CYAN);
+            OLED.print("2D Fix");
         } else if (fixStatus == 3) {
-            tft.setCursor(0, yPos);
-            tft.setTextColor(COLOR_WHITE);
-            tft.print("GPS: ");
-            tft.setTextColor(COLOR_GREEN);
-            tft.print("3D Fix");
+            OLED.setCursor(0, yPos);
+            OLED.setTextColor(COLOR_WHITE);
+            OLED.print("GPS: ");
+            OLED.setTextColor(COLOR_GREEN);
+            OLED.print("3D Fix");
         } else {
-            tft.setCursor(0, yPos);
-            tft.setTextColor(COLOR_WHITE);
-            tft.print("GPS: ");
-            tft.setTextColor(COLOR_MAGENTA);
-            tft.print(" unknown Fix status");
+            OLED.setCursor(0, yPos);
+            OLED.setTextColor(COLOR_WHITE);
+            OLED.print("GPS: ");
+            OLED.setTextColor(COLOR_MAGENTA);
+            OLED.print(" unknown Fix status");
         }
         yPos += 9;
         
@@ -747,18 +810,18 @@ void print_RaceBox_Data_message_payload_to_oled(){
         //printColoredText("Heading: ", COLOR_WHITE, heading / 100000.0, COLOR_BLUE, 0, yPos, " deg", 0); //divide received value by 10^5 according to datasheet
         //check if the heading is valid
         if (fixStatusFlags & 0x20) { //if the heading is valid, display it in CYAN
-          //printColoredText("Heading: ", WHITE, heading / 100000.0, BLUE, 0, yPos, " deg", 0);
+          //printColoredText("Heading: ", WHITE, heading / 100000.0, COLOR_CYAN, 0, yPos, " deg", 0);
           
-          //nicer look: construct a combined string, e.g.: "Heading: 22° (NO)" to make if human readable as well
+          //nicer look: construct a combined string, e.g.: "Heading: 22° (NO)" to make it human readable as well
           String combinedText = "Heading: " + String(headingDegrees, 1) + "deg (" + compass_direction + ")";
           printColoredText("Heading: ", COLOR_WHITE, combinedText.c_str(), COLOR_CYAN, 0, yPos, " (valid)", 0);
         } else {
           //if the heading is not valid, display a different message in red
-          tft.setTextColor(COLOR_WHITE);
-          tft.setCursor(0, yPos);
-          tft.print("Heading: ");
-          tft.setTextColor(COLOR_RED);
-          tft.print("not valid");
+          OLED.setTextColor(COLOR_WHITE);
+          OLED.setCursor(0, yPos);
+          OLED.print("Heading: ");
+          OLED.setTextColor(COLOR_RED);
+          OLED.print("not valid");
         }
         yPos += 9;
         printColoredText("Speed: ", COLOR_RED, speed*3.6 / 1000.0, COLOR_WHITE, 0, yPos, " km/h", 1);
@@ -859,7 +922,7 @@ void function3(){
 
 void loop() {
   if (doConnect) { //if we have requested to connect to a RaceBox
-    Serial.println("DEBUG: doConnect = true (in void loop) - trying to (re)connect...");
+    //Serial.println("DEBUG: doConnect = true (in void loop) - trying to (re)connect...");
     if (connectToRaceBox()) {
       Serial.println("successfully connected to RaceBox.");
       Serial.println();
@@ -867,14 +930,26 @@ void loop() {
         NimBLEDevice::getScan()->stop();
     } else {
       Serial.println("Failed to connect to RaceBox. Reattempting BLE connection...");
-      //NimBLEDevice::getScan()->start(0, false); //scan indefinitely (0) until we stop it manually
+      //NimBLEDevice::getScan()->start(0, false); //scan indefinitely (0) until we stop it manually  //-->this is a simple restart with known scanning parameters
+      //better approch: make sure scanning setup is correct, although slightly more complex:
+      NimBLEScan* pScan = NimBLEDevice::getScan();
+      pScan->setAdvertisedDeviceCallbacks(new AdvertisedDeviceCallbacks());
+      pScan->setInterval(45);
+      pScan->setWindow(15);
+      pScan->setActiveScan(true);
+      pScan->start(0, false); //scan indefinitely until we stop it manually
     }
     doConnect = false;
   }
   if (connected) { //if we are connected to RaceBox
     //add your code here
     interpret_serial_input(); //this function listens to serial console inputs from your computer (when a RaceBox is connected, due to the check 'if (connected)'. Sending 1, 2 or 3 will start functions (currently only empty function prototypes are implemented to give a starting point)
+    if(updated_RaceBox_Data_Message==true){ //if we have received updated values from a RaceBox data message
+      print_RaceBox_Data_message_payload_to_oled(); 
+      print_RaceBox_Data_message_payload_to_serial();
+      updated_RaceBox_Data_Message=false; //reset bool
     }
+  }
   else{
     //do something else if not connected to RaceBox
     interpret_serial_input(); //just for debugging purposes, we also interpret serial input here. Can be removed if we only want to start functions that e.g. send data to RaceBox, but can be useful for development so that the functions are called even if no racebox is connected.
