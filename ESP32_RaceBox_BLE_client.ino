@@ -30,7 +30,7 @@
 //example how to define a certain address so that we only connect to a distinguished RaceBox that matches this address:   #define TARGET_DEVICE_ADDRESS "aa:bb:cc:dd:ee:ff"
 //replace the actual address with the one that matches your device (you will see the address printed in the serial output of this code while scanning for bluetooth devices on start)
 
-#define TARGET_DEVICE_ADDRESS "fc:fc:ae:87:2d:67"
+//#define TARGET_DEVICE_ADDRESS "aa:bb:cc:dd:ee:ff"
 
 //alternatively, you may comment the line above like this: //#define TARGET_DEVICE_ADDRESS "aa:bb:cc:dd:ee:ff".
 //--> In that case we will connect to any RaceBox (or to be clear: to any device that advertises a name beginning with 'RaceBox')
