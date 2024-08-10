@@ -3,7 +3,7 @@ https://www.racebox.pro
 
 The code is not yet finished, please contribute to further development.
 
-Please do not fork the repository solely for the pirpose of bookmarking. That is a bad practise. Only create forks if you implement own work and ideally plan to issue pull requests, so that your improvements can be implemented to this original repository.
+Please do not fork the repository solely for the purpose of bookmarking. That is a bad practise. Only create forks if you implement own work and ideally plan to issue pull requests, so that your improvements can be implemented to this original repository.
 
 Currently, Serial output of ESP32 at 115200 BAUD and connection a 1.5" SPI full color OLED to display live data is supported.
 
