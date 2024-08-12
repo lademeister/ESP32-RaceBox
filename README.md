@@ -5,6 +5,8 @@
 ## It displays live data from RaceBox and allows data parsing of the payload sent from RaceBox using bluetooth low energy (BLE).
 ## It implements checksum and data validity checks and provides a framework to handle different types of messages send from the RaceBox device, as well as sending data to it.
 
+### It also features displaying live Data from RaceBox on an OLED display.
+
 The code is not yet finished, please contribute to further development.
 
 Please do not fork the repository solely for the purpose of bookmarking. That is a bad practise. Only create forks if you implement own work and ideally plan to issue pull requests, so that your improvements can be implemented to this original repository.
