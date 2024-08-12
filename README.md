@@ -7,7 +7,10 @@
 
 ### It also features displaying live Data from RaceBox on an OLED display.
 
-The code is not yet finished, please contribute to further development.
+### The code can connect to any RaceBox in range - by adding the bluetooth device address (Bluetooth MAC address) the code will only connect to a certain device, e.g. if more than one RaceBoxes are in range.
+#### In any case (i.e. also in open scan mode) upon connection, the code verifies that a device indeed is a RaceBox, by checking the advertised name, as well as the advertised bluetooth services (UUIDs).
+
+Not all possibilities of RaceBox are yet implemented, please contribute to further development.
 
 Please do not fork the repository solely for the purpose of bookmarking. That is a bad practise. Only create forks if you implement own work and ideally plan to issue pull requests, so that your improvements can be implemented to this original repository.
 
