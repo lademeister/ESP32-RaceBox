@@ -2,8 +2,8 @@
 # for RaceBox devices from https://www.racebox.pro
 
 # The code allows connecting an ESP32 microcontroller to a RaceBox device.
-## It displays live data from RaceBox and allows data parsing of the payload sent from RaceBox voa bluetooth low energy (BLE).
-## It implements checksum and data validity checks and provided a framework to handle different types of messages send fromthe RaceBox device, as well as sending data to it.
+## It displays live data from RaceBox and allows data parsing of the payload sent from RaceBox using bluetooth low energy (BLE).
+## It implements checksum and data validity checks and provides a framework to handle different types of messages send from the RaceBox device, as well as sending data to it.
 
 The code is not yet finished, please contribute to further development.
 
