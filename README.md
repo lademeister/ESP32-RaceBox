@@ -1,4 +1,4 @@
-# ESP32 BLE blutooth client for RaceBox Micro, RaceBox Mini and RaceBox Mini S. 
+# RaceBox BLE blutooth client for ESP32 for RaceBox Micro, RaceBox Mini and RaceBox Mini S. 
 # for RaceBox devices from https://www.racebox.pro
 
 # The code allows connecting an ESP32 microcontroller to a RaceBox device.
