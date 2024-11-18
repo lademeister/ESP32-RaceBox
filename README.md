@@ -1,5 +1,7 @@
-# RaceBox BLE blutooth client for ESP32 for RaceBox Micro, RaceBox Mini and RaceBox Mini S. 
-# for RaceBox devices from https://www.racebox.pro
+#A quick CYD port for the ESP32-RaceBox project from https://github.com/lademeister/ESP32-RaceBox 
+
+## RaceBox BLE blutooth client for ESP32 for RaceBox Micro, RaceBox Mini and RaceBox Mini S. 
+## for RaceBox devices from https://www.racebox.pro
 
 # The code allows connecting an ESP32 microcontroller to a RaceBox device.
 ## It displays live data from RaceBox and allows data parsing of the payload sent from RaceBox using bluetooth low energy (BLE).
