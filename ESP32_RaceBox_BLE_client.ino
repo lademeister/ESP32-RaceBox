@@ -485,6 +485,9 @@ void parse_RaceBox_Data_Message_payload(uint8_t* data){ //function to handle pay
     gForceX = *(reinterpret_cast<int16_t*>(data + 74));             //0xFDFF (-0.003 g)
     gForceY = *(reinterpret_cast<int16_t*>(data + 76));             //0x7100 (0.113 g)
     gForceZ = *(reinterpret_cast<int16_t*>(data + 78));             //0xCE03 (0.974 g)
+    rotRateX = *(reinterpret_cast<int16_t*>(data + 80));             //0xFDFF (-0.003 deg/s)
+    rotRateY = *(reinterpret_cast<int16_t*>(data + 82));             //0x7100 (0.113 deg/s)
+    rotRateZ = *(reinterpret_cast<int16_t*>(data + 84));             //0xCE03 (0.974 deg/s)
     
     headingDegrees = heading / 100000.0; //convert it to a float variable that is needed for the function getCompassDirection
     compass_direction = getCompassDirection(headingDegrees); //generate human readable compass_direction like N, NW, SW etc. from the heading degrees and save them in String 'compass_direction'
