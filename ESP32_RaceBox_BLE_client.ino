@@ -20,11 +20,13 @@
 //Required libraries: NimBLEclient
 //libraries requred for 1.5" SPI full color OLED (tested with Waveshare 1.5" SPI color OLED): Adafruit_GFX, Adafruit_SSD1351
 
+
 #include <Adafruit_GFX.h>
+#include <Adafruit_SSD1351.h>
 #include <SPI.h>
-#include <NimBLEDevice.h>
-#include <TFT_eSPI.h>
-TFT_eSPI OLED = TFT_eSPI();
+#include <Fonts/FreeSans9pt7b.h>
+#include <Fonts/FreeSerif9pt7b.h>
+#include "NimBLEDevice.h"
 
 //################### important setting #########################
 
@@ -39,9 +41,9 @@ TFT_eSPI OLED = TFT_eSPI();
 //##############################################################
 
 // Screen dimensions - settings for an optional full color 128x128px 1,5" OLED display (SPI Bus)
-#define SCREEN_WIDTH  320
-#define SCREEN_HEIGHT 240 // Change this to 96 for 1.27" OLED. (128 is for 1,5" OLED)
-#define DISPLAY_ROTATION 270
+#define SCREEN_WIDTH  128
+#define SCREEN_HEIGHT 128 // Change this to 96 for 1.27" OLED. (128 is for 1,5" OLED)
+#define DISPLAY_ROTATION 180
 
 //SPI pins used for 1,5" full color OLED display (tested with Waveshare 1,5" SPI color OLED 128x128)
 #define SCLK_PIN 18
@@ -63,7 +65,7 @@ TFT_eSPI OLED = TFT_eSPI();
 //device type, will be set automatically:  0: RaceBox Mini/Mini S, 1: RaceBox Micro - used to handle different battery status decoding between racebox mini/mini s and micro.
 int deviceType = -1; //-1: unknown device type as default, the statement 'if (deviceName.rfind("RaceBox Micro", 0) == 0) {' and the following lines in class AdvertisedDeviceCallbacks automatically determines the device type.
 
-//Adafruit_SSD1351 OLED = Adafruit_SSD1351(SCREEN_WIDTH, SCREEN_HEIGHT, &SPI, CS_PIN, DC_PIN, RST_PIN);
+Adafruit_SSD1351 OLED = Adafruit_SSD1351(SCREEN_WIDTH, SCREEN_HEIGHT, &SPI, CS_PIN, DC_PIN, RST_PIN);
 
 // BLE UUIDs
 static BLEUUID UART_service_UUID("6E400001-B5A3-F393-E0A9-E50E24DCCA9E");
@@ -170,10 +172,10 @@ template <typename T>
 void printColoredText(const char* label, uint16_t labelColor, T value, uint16_t valueColor, int16_t x, int16_t y, const char* unit = "", int precision = 2) {
     OLED.setCursor(x, y);
     
-    OLED.setTextColor(labelColor, COLOR_BLACK);
+    OLED.setTextColor(labelColor);
     OLED.print(label);
     
-    OLED.setTextColor(valueColor, COLOR_BLACK);
+    OLED.setTextColor(valueColor);
     if constexpr (std::is_floating_point<T>::value) {
         OLED.print(value, precision); //specified precision (digits after comma)
     } else {
@@ -201,15 +203,15 @@ class ClientCallbacks : public NimBLEClientCallbacks {
     OLED.fillScreen(COLOR_BLACK); 
     int yPos = 40; // Starting Y position for the first line
     int lineYPos = yPos;
-    OLED.drawLine(0, lineYPos, 320, lineYPos, COLOR_WHITE); //divider line
+    OLED.drawLine(0, lineYPos, 128, lineYPos, COLOR_WHITE); //divider line
     yPos = yPos + 4;
     OLED.setCursor(3, yPos);
     OLED.setTextColor(COLOR_WHITE);
     OLED.print("RaceBox ");
     OLED.setTextColor(COLOR_RED);
     OLED.print("DISCONNECTED");
-    lineYPos = yPos + 11+8;
-    OLED.drawLine(0, lineYPos, 320, lineYPos, COLOR_WHITE); //divider line
+    lineYPos = yPos + 11;
+    OLED.drawLine(0, lineYPos, 128, lineYPos, COLOR_WHITE); //divider line
   }
 };
 
@@ -483,9 +485,6 @@ void parse_RaceBox_Data_Message_payload(uint8_t* data){ //function to handle pay
     gForceX = *(reinterpret_cast<int16_t*>(data + 74));             //0xFDFF (-0.003 g)
     gForceY = *(reinterpret_cast<int16_t*>(data + 76));             //0x7100 (0.113 g)
     gForceZ = *(reinterpret_cast<int16_t*>(data + 78));             //0xCE03 (0.974 g)
-    rotRateX = *(reinterpret_cast<int16_t*>(data + 80));             //0xFDFF (-0.003 deg/s)
-    rotRateY = *(reinterpret_cast<int16_t*>(data + 82));             //0x7100 (0.113 deg/s)
-    rotRateZ = *(reinterpret_cast<int16_t*>(data + 84));             //0xCE03 (0.974 deg/s)
     
     headingDegrees = heading / 100000.0; //convert it to a float variable that is needed for the function getCompassDirection
     compass_direction = getCompassDirection(headingDegrees); //generate human readable compass_direction like N, NW, SW etc. from the heading degrees and save them in String 'compass_direction'
@@ -608,31 +607,22 @@ void setup() {
   Serial.println();
   Serial.println();
 
-  
-
-  //setWidth(320);
-  //setHeight(240);
-  // Start the tft display and set it to black
-  OLED.init();
-  OLED.setRotation(3);
-  OLED.fillScreen(TFT_BLACK);
-  OLED.setTextSize(2);
   //initialize the display
-  /*OLED.begin();
+  OLED.begin();
   set_display_orientation_and_color_invert();
-  OLED.fillScreen(COLOR_BLACK);*/
-  int yPos = 0; //starting Y position
+  OLED.fillScreen(COLOR_BLACK);
+  int yPos = 40; //starting Y position
   int lineYPos = yPos;
-  OLED.drawLine(0, lineYPos, 320, lineYPos, COLOR_WHITE); //divider line
+  OLED.drawLine(0, lineYPos, 128, lineYPos, COLOR_WHITE); //divider line
   yPos = yPos + 4;
   OLED.setCursor(8, yPos);
   OLED.setTextColor(COLOR_WHITE);
   OLED.print("RaceBox ");
   OLED.setTextColor(COLOR_CYAN);
   OLED.print("BLE CLIENT");
-  lineYPos = yPos + 11 + 8;
-  OLED.drawLine(0, lineYPos, 320, lineYPos, COLOR_WHITE); //divider line
-  yPos=lineYPos + 8 + 8;
+  lineYPos = yPos + 11;
+  OLED.drawLine(0, lineYPos, 128, lineYPos, COLOR_WHITE); //divider line
+  yPos=lineYPos + 8;
   OLED.setCursor(0, yPos);
   OLED.setTextColor(COLOR_BLUE);
   OLED.print("Bluetooth ");
@@ -644,10 +634,10 @@ void setup() {
   OLED.setCursor(0, yPos);
   OLED.setTextColor(COLOR_YELLOW);
   OLED.print("will only connect to");
-  yPos=yPos + 10 +8;
+  yPos=yPos + 10;
   OLED.setCursor(0, yPos);
   OLED.print("RaceBox with address");
-  yPos=yPos + 12 +8;
+  yPos=yPos + 12;
   OLED.setCursor(10, yPos);
   OLED.setTextColor(COLOR_MAGENTA);
   OLED.print(TARGET_DEVICE_ADDRESS);
@@ -768,76 +758,55 @@ void print_RaceBox_Data_message_payload_to_oled(){
 //    if (currentTime - lastOutputTimeOLED >= outputIntervalMs_oled) { //limits the amount how often we print current values to oled
 //        lastOutputTimeOLED = currentTime;
         //clear OLED screen and display values on 1,5" SPI color OLED display:
-        //OLED.fillScreen(COLOR_BLACK); //can be done more nicely, the full clearing of oled screen is visible as flickering.
+        OLED.fillScreen(COLOR_BLACK); //can be done more nicely, the full clearing of oled screen is visible as flickering.
         set_display_orientation_and_color_invert(); //could be moved to setup()
 
         //displaying data on the OLED with 9px spacing
-        int yPos = 0; //starting Y position for the first line
+        int yPos = 0; //tarting Y position for the first line
         int lineYPos = yPos;
-        yPos = yPos+3 +1;
-        OLED.drawLine(0, lineYPos, 320, lineYPos, COLOR_WHITE); //divider line
+        yPos = yPos+3;
+        OLED.drawLine(0, lineYPos, 128, lineYPos, COLOR_WHITE); //divider line
         OLED.setCursor(15, yPos); //starting at x position 15 and y position 0 (x is to the right, y is downwards)
-        OLED.setTextColor(COLOR_RED, COLOR_BLACK);
+        OLED.setTextColor(COLOR_RED);
         OLED.print("RaceBox ");
-        OLED.setTextColor(COLOR_GREEN, COLOR_BLACK);
+        OLED.setTextColor(COLOR_GREEN);
         OLED.print("connected");
-        lineYPos = yPos + 11 + 8;
-        OLED.drawLine(0, lineYPos, 320, lineYPos, COLOR_WHITE); //divider line
+        lineYPos = yPos + 11;
+        OLED.drawLine(0, lineYPos, 128, lineYPos, COLOR_WHITE); //divider line
         
-        yPos += 15+10; //jump down a bit for the next line
+        yPos += 15; //jump down a bit for the next line
         
         if (fixStatus == 0) {
             OLED.setCursor(0, yPos);
-            OLED.setTextColor(COLOR_WHITE, COLOR_BLACK);
+            OLED.setTextColor(COLOR_WHITE);
             OLED.print("GPS: ");
-            OLED.setTextColor(COLOR_RED, COLOR_BLACK);
-            OLED.print("no Fix                  ");
+            OLED.setTextColor(COLOR_RED);
+            OLED.print("no Fix");
         } else if (fixStatus == 2) {
             OLED.setCursor(0, yPos);
-            OLED.setTextColor(COLOR_WHITE, COLOR_BLACK);
+            OLED.setTextColor(COLOR_WHITE);
             OLED.print("GPS: ");
-            OLED.setTextColor(COLOR_CYAN, COLOR_BLACK);
+            OLED.setTextColor(COLOR_CYAN);
             OLED.print("2D Fix");
-            OLED.setTextColor(COLOR_WHITE, COLOR_BLACK);
-            OLED.print(" | ");
-            OLED.setTextColor(COLOR_YELLOW, COLOR_BLACK);
-            OLED.print(numSVs);
-            OLED.setTextColor(COLOR_WHITE, COLOR_BLACK);
-            OLED.print(" | ");
-            OLED.setTextColor(COLOR_CYAN, COLOR_BLACK);
-            OLED.print(horizontalAccuracy);
-            OLED.print(" mm   ");
         } else if (fixStatus == 3) {
             OLED.setCursor(0, yPos);
-            OLED.setTextColor(COLOR_WHITE, COLOR_BLACK);
+            OLED.setTextColor(COLOR_WHITE);
             OLED.print("GPS: ");
-            OLED.setTextColor(COLOR_GREEN, COLOR_BLACK);
+            OLED.setTextColor(COLOR_GREEN);
             OLED.print("3D Fix");
-            OLED.setTextColor(COLOR_WHITE, COLOR_BLACK);
-            OLED.print(" | ");
-            OLED.setTextColor(COLOR_YELLOW, COLOR_BLACK);
-            OLED.print(numSVs);
-            OLED.setTextColor(COLOR_WHITE, COLOR_BLACK);
-            OLED.print(" | ");
-            OLED.setTextColor(COLOR_CYAN, COLOR_BLACK);
-            OLED.print(horizontalAccuracy);
-            OLED.print(" mm   ");
         } else {
             OLED.setCursor(0, yPos);
-            OLED.setTextColor(COLOR_WHITE, COLOR_BLACK);
+            OLED.setTextColor(COLOR_WHITE);
             OLED.print("GPS: ");
-            OLED.setTextColor(COLOR_MAGENTA, COLOR_BLACK);
+            OLED.setTextColor(COLOR_MAGENTA);
             OLED.print(" unknown Fix status");
         }
         yPos += 9;
-        yPos += 10;
         
         printColoredText("Lat: ", COLOR_YELLOW, latitude / 1e7, COLOR_WHITE, 0, yPos, " deg", 4);
         yPos += 9;
-        yPos += 10;
         printColoredText("Lon: ", COLOR_GREEN, longitude / 1e7, COLOR_WHITE, 0, yPos, " deg", 4);
         yPos += 9;
-        yPos += 10;
         //printColoredText("Heading: ", COLOR_WHITE, heading / 100000.0, COLOR_BLUE, 0, yPos, " deg", 0); //divide received value by 10^5 according to datasheet
         //check if the heading is valid
         if (fixStatusFlags & 0x20) { //if the heading is valid, display it in CYAN
@@ -848,35 +817,26 @@ void print_RaceBox_Data_message_payload_to_oled(){
           printColoredText("Heading: ", COLOR_WHITE, combinedText.c_str(), COLOR_CYAN, 0, yPos, " (valid)", 0);
         } else {
           //if the heading is not valid, display a different message in red
-          OLED.setTextColor(COLOR_WHITE, COLOR_BLACK);
+          OLED.setTextColor(COLOR_WHITE);
           OLED.setCursor(0, yPos);
           OLED.print("Heading: ");
-          OLED.setTextColor(COLOR_RED, COLOR_BLACK);
+          OLED.setTextColor(COLOR_RED);
           OLED.print("not valid");
         }
         yPos += 9;
-        yPos += 10;
-        printColoredText("Speed: ", COLOR_RED, speed*3.6 / 1000.0, COLOR_WHITE, 0, yPos, " km/h    ", 1);
+        printColoredText("Speed: ", COLOR_RED, speed*3.6 / 1000.0, COLOR_WHITE, 0, yPos, " km/h", 1);
         yPos += 12;
-        OLED.drawLine(0, yPos+6, 320, yPos+6, COLOR_CYAN);
-        yPos += 10;
-        printColoredText("G-Force X: ", COLOR_RED, gForceX / 1000.0, COLOR_BLUE, 0, yPos, " G    ", 2);
+        printColoredText("G-Force X: ", COLOR_RED, gForceX / 1000.0, COLOR_BLUE, 0, yPos, " G", 2);
         yPos += 9;
-        yPos += 10;
-        printColoredText("G-Force Y: ", COLOR_YELLOW, gForceY / 1000.0, COLOR_BLUE, 0, yPos, " G    ", 2);
+        printColoredText("G-Force Y: ", COLOR_YELLOW, gForceY / 1000.0, COLOR_BLUE, 0, yPos, " G", 2);
         yPos += 9;
-        yPos += 10;
-        printColoredText("G-Force Z: ", COLOR_GREEN, gForceZ / 1000.0, COLOR_BLUE, 0, yPos, " G    ", 2);
+        printColoredText("G-Force Z: ", COLOR_GREEN, gForceZ / 1000.0, COLOR_BLUE, 0, yPos, " G", 2);
         yPos += 12;
-        OLED.drawLine(0, yPos+6, 320, yPos+6, COLOR_CYAN);
-        yPos += 10;
-        printColoredText("RotRateX: ", COLOR_WHITE, rotRateX / 100.0, COLOR_YELLOW, 0, yPos, " deg/s    ", 2);
+        printColoredText("RotRateX: ", COLOR_WHITE, rotRateX / 100.0, COLOR_YELLOW, 0, yPos, " deg/s", 2);
         yPos += 9;
-        yPos += 10;
-        printColoredText("RotRateY: ", COLOR_WHITE, rotRateY / 100.0, COLOR_RED, 0, yPos, " deg/s    ", 2);
+        printColoredText("RotRateY: ", COLOR_WHITE, rotRateY / 100.0, COLOR_RED, 0, yPos, " deg/s", 2);
         yPos += 9;
-        yPos += 10;
-        printColoredText("RotRateZ: ", COLOR_WHITE, rotRateZ / 100.0, COLOR_GREEN, 0, yPos, " deg/s    ", 2);
+        printColoredText("RotRateZ: ", COLOR_WHITE, rotRateZ / 100.0, COLOR_GREEN, 0, yPos, " deg/s", 2);
 //        yPos += 9;
 //        printColoredText("Date: ", COLOR_WHITE, year, COLOR_WHITE, 0, yPos, String(month) + "-" + String(day).c_str(), 0);
 //        yPos += 9;
@@ -968,7 +928,6 @@ void loop() {
       Serial.println();
       //stop scanning for Bluetooth devices, now that we're connected to our RaceBox
         NimBLEDevice::getScan()->stop();
-        OLED.fillScreen(COLOR_BLACK);
     } else {
       Serial.println("Failed to connect to RaceBox. Reattempting BLE connection...");
       //NimBLEDevice::getScan()->start(0, false); //scan indefinitely (0) until we stop it manually  //-->this is a simple restart with known scanning parameters
