@@ -1,13 +1,16 @@
-# RaceBox BLE blutooth client for ESP32 for RaceBox Micro, RaceBox Mini and RaceBox Mini S. 
-# for RaceBox devices from https://www.racebox.pro
+## A quick CYD port for the ESP32-RaceBox project from https://github.com/lademeister/ESP32-RaceBox 
 
-# The code allows connecting an ESP32 microcontroller to a RaceBox device.
-## It displays live data from RaceBox and allows data parsing of the payload sent from RaceBox using bluetooth low energy (BLE).
-## It implements checksum and data validity checks and provides a framework to handle different types of messages send from the RaceBox device, as well as sending data to it.
+RaceBox BLE blutooth client for ESP32 for RaceBox Micro, RaceBox Mini and RaceBox Mini S. 
+for RaceBox devices from https://www.racebox.pro
 
-### It also features displaying live Data from RaceBox on an OLED display.
 
-### The code can connect to any RaceBox in range - by adding the bluetooth device address (Bluetooth MAC address) the code will only connect to a certain device, e.g. if more than one RaceBoxes are in range.
+## The code allows connecting an ESP32 microcontroller to a RaceBox device.
+### It displays live data from RaceBox and allows data parsing of the payload sent from RaceBox using bluetooth low energy (BLE).
+### It implements checksum and data validity checks and provides a framework to handle different types of messages send from the RaceBox device, as well as sending data to it.
+
+#### It also features displaying live Data from RaceBox on an OLED display.
+
+#### The code can connect to any RaceBox in range - by adding the bluetooth device address (Bluetooth MAC address) the code will only connect to a certain device, e.g. if more than one RaceBoxes are in range.
 #### In any case (i.e. also in open scan mode) upon connection, the code verifies that a device indeed is a RaceBox, by checking the advertised name, as well as the advertised bluetooth services (UUIDs).
 
 Not all possibilities of RaceBox are yet implemented, please contribute to further development.
